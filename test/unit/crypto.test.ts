@@ -1,0 +1,106 @@
+import { describe, it, expect } from "vitest";
+import { Identity } from "../../src/security/identity.js";
+import {
+  signEnvelope,
+  verifyEnvelopeSignature,
+  stableStringify,
+} from "../../src/security/crypto.js";
+import { createEnvelope } from "../../src/network/protocol.js";
+import { MessageType } from "../../src/types/messages.js";
+import {
+  generateEphemeralKeyPair,
+  deriveSession,
+} from "../../src/security/session.js";
+
+describe("stableStringify", () => {
+  it("is order-independent for object keys", () => {
+    expect(stableStringify({ a: 1, b: 2 })).toBe(stableStringify({ b: 2, a: 1 }));
+  });
+  it("distinguishes different values", () => {
+    expect(stableStringify({ a: 1 })).not.toBe(stableStringify({ a: 2 }));
+  });
+  it("omits undefined and preserves arrays", () => {
+    expect(stableStringify({ a: undefined, b: [3, 1] })).toBe('{"b":[3,1]}');
+  });
+});
+
+describe("envelope signing", () => {
+  it("verifies a valid signature", () => {
+    const id = Identity.generate();
+    const env = createEnvelope(id.deviceId, "*", MessageType.Ping, { seq: 1 });
+    const signed = signEnvelope(id, env);
+    expect(signed.signature.length).toBeGreaterThan(0);
+    expect(verifyEnvelopeSignature(signed, id.publicKeyRaw)).toBe(true);
+  });
+
+  it("rejects a tampered payload", () => {
+    const id = Identity.generate();
+    const signed = signEnvelope(
+      id,
+      createEnvelope(id.deviceId, "*", MessageType.Ping, { seq: 1 }),
+    );
+    const tampered = { ...signed, payload: { seq: 999 } };
+    expect(verifyEnvelopeSignature(tampered, id.publicKeyRaw)).toBe(false);
+  });
+
+  it("rejects a signature from a different key", () => {
+    const a = Identity.generate();
+    const b = Identity.generate();
+    const signed = signEnvelope(
+      a,
+      createEnvelope(a.deviceId, "*", MessageType.Ping, { seq: 1 }),
+    );
+    expect(verifyEnvelopeSignature(signed, b.publicKeyRaw)).toBe(false);
+  });
+});
+
+describe("SecureSession (X25519 + AES-256-GCM)", () => {
+  function pair() {
+    const initiator = generateEphemeralKeyPair();
+    const responder = generateEphemeralKeyPair();
+    const sessionA = deriveSession({
+      role: "initiator",
+      ourEphemeralPrivate: initiator.privateKey,
+      peerEphemeralPublicRaw: responder.publicKeyRaw,
+      initiatorEphemeralPublicRaw: initiator.publicKeyRaw,
+      responderEphemeralPublicRaw: responder.publicKeyRaw,
+    });
+    const sessionB = deriveSession({
+      role: "responder",
+      ourEphemeralPrivate: responder.privateKey,
+      peerEphemeralPublicRaw: initiator.publicKeyRaw,
+      initiatorEphemeralPublicRaw: initiator.publicKeyRaw,
+      responderEphemeralPublicRaw: responder.publicKeyRaw,
+    });
+    return { sessionA, sessionB };
+  }
+
+  it("round-trips a message between the two derived sessions", () => {
+    const { sessionA, sessionB } = pair();
+    const plaintext = Buffer.from("hello air share");
+    expect(sessionB.decrypt(sessionA.encrypt(plaintext)).toString()).toBe("hello air share");
+    // and the other direction
+    expect(sessionA.decrypt(sessionB.encrypt(plaintext)).toString()).toBe("hello air share");
+  });
+
+  it("fails to decrypt a tampered ciphertext", () => {
+    const { sessionA, sessionB } = pair();
+    const frame = sessionA.encrypt(Buffer.from("secret"));
+    frame[frame.length - 1] ^= 0xff; // corrupt the auth tag
+    expect(() => sessionB.decrypt(frame)).toThrow();
+  });
+
+  it("produces unrelated keys for an unrelated third party", () => {
+    const { sessionA } = pair();
+    const stranger = generateEphemeralKeyPair();
+    const other = generateEphemeralKeyPair();
+    const sessionC = deriveSession({
+      role: "responder",
+      ourEphemeralPrivate: stranger.privateKey,
+      peerEphemeralPublicRaw: other.publicKeyRaw,
+      initiatorEphemeralPublicRaw: other.publicKeyRaw,
+      responderEphemeralPublicRaw: stranger.publicKeyRaw,
+    });
+    expect(() => sessionC.decrypt(sessionA.encrypt(Buffer.from("x")))).toThrow();
+  });
+});
