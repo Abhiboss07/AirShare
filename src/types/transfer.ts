@@ -182,11 +182,28 @@ export interface TransferMetrics {
   bytes?: number;
 }
 
+/**
+ * A structured description of one feature a device offers. Richer than a bare
+ * "supported" flag so peers can reason about read/write direction, streaming,
+ * and size limits before attempting a doomed transfer.
+ */
+export interface CapabilityFeature {
+  read?: boolean;
+  write?: boolean;
+  streaming?: boolean;
+  /** Largest payload this feature accepts, in bytes. */
+  maxBytes?: number;
+  version?: string;
+}
+
 /** A device's advertised capabilities, exchanged after connection. */
 export interface CapabilityDoc {
   device: string;
   version: string;
+  /** Coarse feature list (back-compat, always present). */
   supports: string[];
+  /** Optional richer per-feature detail keyed by feature name. */
+  matrix?: Record<string, CapabilityFeature>;
 }
 
 // ---- Virtual hand ----------------------------------------------------------
@@ -199,6 +216,8 @@ export interface VirtualHand {
   entityId?: string | undefined;
   confidence: number;
   targetDeviceId?: string | undefined;
+  /** Action a modifier gesture selected for this hand; falls back to default. */
+  action?: TransferAction | undefined;
   lastGesture?: string | undefined;
   updatedAt: number;
 }

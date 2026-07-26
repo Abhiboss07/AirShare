@@ -31,9 +31,10 @@ import {
 import type { EntityManager } from "./entityManager.js";
 import type { PluginRegistry } from "./registry.js";
 import type { VirtualHandRegistry } from "./virtualHand.js";
-import type { EntityCipher } from "./entityCipher.js";
+import type { CipherProvider } from "./cipherProvider.js";
 import type { ITransferTransport } from "./transport.js";
 import type { TargetResolver } from "./targetResolver.js";
+import type { ActionResolver, ActionExecutor } from "./actionEngine.js";
 import type { TransferConfig } from "./config.js";
 
 export interface TransferRuntimeDeps {
@@ -42,9 +43,14 @@ export interface TransferRuntimeDeps {
   entities: EntityManager;
   registry: PluginRegistry;
   hands: VirtualHandRegistry;
-  cipher: EntityCipher;
+  /** Selects the end-to-end entity cipher for a given peer. */
+  cipherProvider: CipherProvider;
   transport: ITransferTransport;
   targetResolver: TargetResolver;
+  /** Decides which action a release implies (source side). */
+  actionResolver: ActionResolver;
+  /** Per-action handler registry consulted before sink delivery (dest side). */
+  actionExecutor: ActionExecutor;
   config: TransferConfig;
   logger: Logger;
 }
@@ -154,7 +160,8 @@ export class TransferRuntime {
     });
 
     if (target) {
-      await this.dispatch(entity, this.deps.config.defaultAction, target);
+      const action = this.deps.actionResolver.resolve(entity, { hand });
+      await this.dispatch(entity, action, target);
     } else {
       this.dropInPlace(entity); // released with no destination
     }
@@ -192,7 +199,8 @@ export class TransferRuntime {
 
       this.deps.entities.transition(entity.id, EntityState.Validated);
       const { data, encoding } = this.deps.entities.encodePayload(entity);
-      const { ciphertext, meta } = await this.deps.cipher.encrypt(data);
+      const cipher = await this.deps.cipherProvider.cipherFor(target);
+      const { ciphertext, meta } = await cipher.encrypt(data);
       this.deps.entities.transition(entity.id, EntityState.Encrypted);
 
       const serialized = this.deps.entities.buildSerialized(
@@ -250,7 +258,8 @@ export class TransferRuntime {
     const s = envelope.entity;
     try {
       const ciphertext = Buffer.from(s.payload, "base64");
-      const plaintext = await this.deps.cipher.decrypt(
+      const cipher = await this.deps.cipherProvider.cipherFor(envelope.sender);
+      const plaintext = await cipher.decrypt(
         ciphertext,
         s.encryption ?? { algorithm: "none" },
       );
@@ -267,10 +276,18 @@ export class TransferRuntime {
       if (!valid.ok) return this.failReceive(envelope, entity.id, valid.reason ?? "invalid");
 
       this.deps.entities.transition(entity.id, EntityState.Ready);
-      const sink = this.deps.registry.resolveSink(entity, envelope.action);
-      if (!sink) return this.failReceive(envelope, entity.id, "no sink for entity");
-
-      await sink.drop(entity, envelope.action);
+      // A registered action handler owns the action outright; otherwise fall
+      // back to normal sink delivery (the default, unchanged path).
+      if (this.deps.actionExecutor.has(envelope.action)) {
+        await this.deps.actionExecutor.execute(entity, envelope.action, {
+          transferId: envelope.transferId,
+          sender: envelope.sender,
+        });
+      } else {
+        const sink = this.deps.registry.resolveSink(entity, envelope.action);
+        if (!sink) return this.failReceive(envelope, entity.id, "no sink for entity");
+        await sink.drop(entity, envelope.action);
+      }
       this.deps.entities.transition(entity.id, EntityState.Dropped);
       this.deps.entities.transition(entity.id, EntityState.Completed);
       this.deps.eventBus.emit("transfer:completed", { transferId: envelope.transferId, entityId: entity.id });

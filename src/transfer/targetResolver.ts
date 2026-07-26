@@ -27,3 +27,29 @@ export class StaticTargetResolver implements TargetResolver {
     return this.deviceId;
   }
 }
+
+/**
+ * Resolves aim against the set of currently-connected devices, optionally
+ * filtered by a capability predicate (e.g. "device supports files"). This is the
+ * dynamic resolver the mesh uses by default: a lone connected peer is chosen
+ * outright; with several peers the first that passes the predicate wins.
+ *
+ * The 3D pointing-ray path — projecting the `point` gesture's direction onto a
+ * spatial map of devices — plugs in here once devices carry positions; the
+ * interface (`hand`, `TargetContext.direction`) already reserves the inputs.
+ */
+export class RegistryTargetResolver implements TargetResolver {
+  constructor(
+    /** Ids of devices currently eligible as targets (e.g. connected peers). */
+    private readonly candidates: () => string[],
+    /** Optional gate: only devices for which this returns true are chosen. */
+    private readonly eligible: (deviceId: string) => boolean = () => true,
+  ) {}
+
+  resolve(hand: VirtualHand, _context: TargetContext): string | undefined {
+    void hand;
+    void _context;
+    const ids = this.candidates().filter((id) => this.eligible(id));
+    return ids[0];
+  }
+}
