@@ -74,10 +74,13 @@ async function main(): Promise<void> {
     name: "printer",
     types: [EntityType.Text],
     actions: [TransferAction.Copy],
-    drop: (entity) => console.log(`\n📥 PC-B received & dropped: "${entity.payload}"\n`),
+    drop: (entity) => {
+      console.log(`\n📥 PC-B received & dropped: "${entity.payload}"`);
+      console.log(`🔐 object encrypted end-to-end with: ${entity.encryption?.algorithm}\n`);
+    },
   };
 
-  attachTransferMesh(a, {
+  const aSys = attachTransferMesh(a, {
     supports: ["transfer", "text"],
     providers: [provider],
     targetResolver: new StaticTargetResolver(b.identityInfo.id),
@@ -107,6 +110,14 @@ async function main(): Promise<void> {
   a.events.emit("gesture:pinch-release", { handId: "right", position: { x: 0.8, y: 0.5 }, heldMs: 500 });
   await done;
   console.log("✅ PC-A: transfer completed");
+
+  const stats = aSys.ledger.analytics();
+  const last = aSys.ledger.recent(1)[0];
+  console.log(
+    `📒 ledger: ${stats.completed}/${stats.total} completed ` +
+      `(success ${(stats.successRate * 100).toFixed(0)}%), ` +
+      `last → ${last?.dest?.slice(0, 10)}… in ${last?.durationMs}ms, rtt ${last?.rttMs}ms`,
+  );
 
   await new Promise((r) => setTimeout(r, 50));
   await a.stop();

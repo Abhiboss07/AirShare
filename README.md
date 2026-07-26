@@ -7,11 +7,13 @@ messaging, heartbeats and reconnection. There is deliberately **no** gesture,
 camera, clipboard or file-transfer code yet — those plug into this foundation
 later without changing it.
 
-> Status: **Phases 1–4 complete.** 99 automated tests passing, including a real
+> Status: **Phases 1–5A complete.** 113 automated tests passing, including a real
 > two-node WebSocket handshake, the full gesture pipeline, and a
-> **gesture→grab→encrypt→real-mesh-transfer→drop** flow between two live nodes.
-> Docs: [`PHASE2`](docs/PHASE2.md) · [`PHASE3`](docs/PHASE3.md) ·
-> [`PHASE4`](docs/PHASE4.md). Milestone demo: `npm run mesh:demo`.
+> **gesture→grab→end-to-end-encrypt→real-mesh-transfer→drop** flow between two
+> live nodes (session-derived AES-256-GCM on the object itself), with a transfer
+> ledger + analytics on both ends. Docs: [`PHASE2`](docs/PHASE2.md) ·
+> [`PHASE3`](docs/PHASE3.md) · [`PHASE4`](docs/PHASE4.md) ·
+> [`PHASE5A`](docs/PHASE5A.md). Milestone demo: `npm run mesh:demo`.
 
 ---
 
@@ -82,8 +84,10 @@ src/
   network/     Protocol codec, mDNS discovery, WebSocket transport, PeerConnection FSM
   services/    DeviceRegistry, PairingService, ConnectionManager
   vision/      (Phase 2) geometry, smoothing, detectors, swipe, state machine, engine
-  transfer/    (Phase 3) entities, state machine, cipher, registry, scheduler, runtime
-  mesh/        (Phase 4) mesh transport, messenger, capabilities — bridges net + transfer
+  transfer/    (Phase 3/5A) entities, state machine, cipher provider, registry,
+               scheduler, action engine, ledger + analytics, runtime
+  mesh/        (Phase 4/5A) mesh transport, messenger, capability matrix,
+               session-keyed E2E cipher — bridges net + transfer
   core/        AirShareNode — composition root & public facade
   index.ts     Library exports + reference CLI
 scripts/
@@ -150,9 +154,11 @@ The full event catalogue is in [`src/types/events.ts`](src/types/events.ts).
 | 2 | Vision & Gesture Engine (MediaPipe landmarks → `gesture:*` events) | ✅ |
 | 3 | Transfer Runtime (`TransferableEntity` lifecycle, action pipeline, plugins, virtual hand) | ✅ |
 | 4 | Real Device Mesh (mesh transport over Phase-1, scheduler, capabilities, latency) | ✅ |
-| 5 | Content Providers (clipboard, image, file, text, screen, window, browser) | ⬜ |
+| 5A | Production Runtime (E2E entity encryption, dynamic target resolver, capability matrix, transfer ledger + analytics, action engine) | ✅ |
+| 5B | Content Providers (clipboard, image, file, text, screen, window, browser) | ⬜ |
 | 6 | Huawei Experience (floating object, beam, device highlight, hover preview, haptics, latency, e2e) | ⬜ |
 
 Each phase is additive and meets the others only on the `EventBus` / behind
-interfaces. The distributed runtime is now proven end-to-end, so every Phase-5
-content provider is a small plugin — no networking changes required.
+interfaces. The distributed runtime is now hardened (end-to-end encrypted,
+observable, action-aware), so every Phase-5B content provider is a small
+plugin — no networking or security changes required.
