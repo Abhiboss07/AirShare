@@ -23,6 +23,7 @@ export * from "./types/transfer.js";
 export * from "./vision/index.js";
 export * from "./transfer/index.js";
 export * from "./mesh/index.js";
+export * from "./content/index.js";
 
 async function main(): Promise<void> {
   const node = new AirShareNode();
