@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Air Share — Experience</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Air&nbsp;Share <span class="tag">gesture cross-device transfer</span></h1>
+      <div id="status" class="status">connecting…</div>
+    </header>
+
+    <main class="stage">
+      <!-- PC-A: your camera + hand overlay -->
+      <section class="panel" id="panel-A">
+        <div class="panel-label"><span class="dot"></span> <span id="name-A">PC-A</span> · you</div>
+        <div class="camera-wrap">
+          <video id="cam" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="hud">
+          <div><span>gesture</span><b id="hud-gesture">—</b></div>
+          <div><span>confidence</span><b id="hud-conf">—</b></div>
+          <div><span>holding</span><b id="hud-hold">no</b></div>
+          <div><span>target</span><b id="hud-target">—</b></div>
+        </div>
+      </section>
+
+      <div class="link" aria-hidden="true">
+        <div class="beam-track"><div id="beam" class="beam"></div></div>
+        <small>AES-256-GCM · secure mesh</small>
+      </div>
+
+      <!-- PC-B: the receiver tile -->
+      <section class="panel tile" id="panel-B">
+        <div class="panel-label"><span class="dot"></span> <span id="name-B">PC-B</span></div>
+        <div class="device" id="device-B">💻</div>
+        <div class="clip">
+          <span>clipboard</span>
+          <p id="clip-B">—</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- The object that follows your pinch -->
+    <div id="object" class="floating-object">📄</div>
+
+    <footer>
+      Pinch to grab · release toward <b>PC-B</b> · it lands in PC-B's clipboard.
+    </footer>
+
+    <script type="module" src="./dist/client.js"></script>
+  </body>
+</html>
