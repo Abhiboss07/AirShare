@@ -110,6 +110,19 @@ describe("Phase 4 — real device mesh", () => {
     expect(dropped[0]!.owner).toBe(a.identityInfo.id);
     expect(metrics.rttMs).toBeGreaterThanOrEqual(0);
     expect(metrics.processingMs).toBeGreaterThanOrEqual(0);
+
+    // End-to-end entity encryption: the object crossed the wire under a real
+    // session-derived AES-256-GCM key (not the Noop/loopback cipher).
+    expect(dropped[0]!.encryption?.algorithm).toBe("aes-256-gcm");
+
+    // The ledger recorded the transfer on both ends.
+    const sourceEntry = aSys.ledger.recent(1)[0]!;
+    expect(sourceEntry.outcome).toBe("completed");
+    expect(sourceEntry.dest).toBe(b.identityInfo.id);
+    expect(sourceEntry.rttMs).toBeGreaterThanOrEqual(0);
+    const destEntry = bSys.ledger.recent(1)[0]!;
+    expect(destEntry.outcome).toBe("completed");
+    expect(destEntry.source).toBe(a.identityInfo.id);
   });
 
   it("negotiates capabilities between the two devices", async () => {
@@ -119,7 +132,10 @@ describe("Phase 4 — real device mesh", () => {
     await b.start();
 
     const aSys = attachTransferMesh(a, { supports: ["transfer", "clipboard", "ocr"] });
-    const bSys = attachTransferMesh(b, { supports: ["transfer", "files"] });
+    const bSys = attachTransferMesh(b, {
+      supports: ["transfer", "files"],
+      matrix: { files: { read: true, write: true, streaming: true, maxBytes: 20e9 } },
+    });
     systems.push(aSys, bSys);
 
     const negotiatedOnA = waitFor(a, "capabilities:negotiated");
@@ -130,6 +146,12 @@ describe("Phase 4 — real device mesh", () => {
     expect(aSys.capabilities.supports(b.identityInfo.id, "files")).toBe(true);
     expect(aSys.capabilities.supports(b.identityInfo.id, "ocr")).toBe(false);
     expect(bSys.capabilities.supports(a.identityInfo.id, "clipboard")).toBe(true);
+
+    // Richer matrix: structured per-feature detail negotiated alongside supports[].
+    expect(aSys.capabilities.can(b.identityInfo.id, "files", "streaming")).toBe(true);
+    expect(aSys.capabilities.feature(b.identityInfo.id, "files")?.maxBytes).toBe(20e9);
+    // A advertised no matrix, so `can` falls back to the coarse supports[] list.
+    expect(bSys.capabilities.can(a.identityInfo.id, "clipboard", "write")).toBe(true);
   });
 
   it("exposes a streaming-ready interface that is NotImplemented for now", async () => {

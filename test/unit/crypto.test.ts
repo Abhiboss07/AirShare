@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createCipheriv } from "node:crypto";
 import { Identity } from "../../src/security/identity.js";
 import {
   signEnvelope,
@@ -102,5 +103,37 @@ describe("SecureSession (X25519 + AES-256-GCM)", () => {
       responderEphemeralPublicRaw: stranger.publicKeyRaw,
     });
     expect(() => sessionC.decrypt(sessionA.encrypt(Buffer.from("x")))).toThrow();
+  });
+
+  it("derives an identical, role-independent entity key on both peers", () => {
+    const { sessionA, sessionB } = pair();
+    // Symmetric: both sides agree on the same end-to-end entity key regardless
+    // of who initiated. This is what lets a single AES key encrypt the object.
+    expect(sessionA.entityKey().equals(sessionB.entityKey())).toBe(true);
+    expect(sessionA.entityKey()).toHaveLength(32);
+  });
+
+  it("separates the entity key from the transport (tx/rx) keys", () => {
+    const { sessionA, sessionB } = pair();
+    // The entity key is purpose-separated from the transport keys: a frame
+    // encrypted with the entity key must NOT decrypt as a transport frame.
+    const iv = Buffer.alloc(12);
+    const c = createCipheriv("aes-256-gcm", sessionA.entityKey(), iv);
+    const ct = Buffer.concat([c.update(Buffer.from("obj")), c.final(), c.getAuthTag()]);
+    expect(() => sessionB.decrypt(Buffer.concat([iv, ct]))).toThrow();
+  });
+
+  it("gives an unrelated third party a different entity key", () => {
+    const { sessionA } = pair();
+    const stranger = generateEphemeralKeyPair();
+    const other = generateEphemeralKeyPair();
+    const sessionC = deriveSession({
+      role: "responder",
+      ourEphemeralPrivate: stranger.privateKey,
+      peerEphemeralPublicRaw: other.publicKeyRaw,
+      initiatorEphemeralPublicRaw: other.publicKeyRaw,
+      responderEphemeralPublicRaw: stranger.publicKeyRaw,
+    });
+    expect(sessionA.entityKey().equals(sessionC.entityKey())).toBe(false);
   });
 });
