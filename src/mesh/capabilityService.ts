@@ -15,7 +15,7 @@
 import type { IEventBus } from "../events/eventBus.js";
 import type { Logger } from "../utils/logger.js";
 import type { MeshMessenger } from "./messenger.js";
-import type { CapabilityDoc } from "../types/transfer.js";
+import type { CapabilityDoc, CapabilityFeature } from "../types/transfer.js";
 
 export const CHANNEL_CAPABILITIES = "airshare/capabilities";
 
@@ -68,6 +68,21 @@ export class CapabilityService {
   /** Does `deviceId` support `capability`? Unknown devices return false. */
   supports(deviceId: string, capability: string): boolean {
     return this.remote.get(deviceId)?.supports.includes(capability) ?? false;
+  }
+
+  /** The structured feature detail a peer advertised, if any. */
+  feature(deviceId: string, name: string): CapabilityFeature | undefined {
+    return this.remote.get(deviceId)?.matrix?.[name];
+  }
+
+  /**
+   * Can `deviceId` perform `op` on `name`? Prefers the structured matrix; falls
+   * back to the coarse `supports[]` list when no matrix entry exists.
+   */
+  can(deviceId: string, name: string, op: "read" | "write" | "streaming"): boolean {
+    const f = this.feature(deviceId, name);
+    if (f) return f[op] === true;
+    return this.supports(deviceId, name);
   }
 
   capabilitiesOf(deviceId: string): CapabilityDoc | undefined {
