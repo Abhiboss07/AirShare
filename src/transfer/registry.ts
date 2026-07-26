@@ -18,6 +18,7 @@ import type {
   GrabContext,
   TransferableEntity,
   TransferAction,
+  PluginPermissions,
 } from "../types/transfer.js";
 import type { Logger } from "../utils/logger.js";
 
@@ -28,6 +29,10 @@ export interface EntityProvider {
   readonly types: EntityType[];
   /** Higher priority providers are consulted first. Default 0. */
   readonly priority?: number;
+  /** Declared capabilities/requirements (advisory). */
+  readonly permissions?: PluginPermissions;
+  /** Fast pre-check: can this provider produce anything for this grab? */
+  canProvide?(context: GrabContext): boolean;
   /** Return a draft entity for this grab, or undefined to decline. */
   capture(context: GrabContext): Promise<EntityDraft | undefined> | EntityDraft | undefined;
 }
@@ -38,6 +43,8 @@ export interface EntitySink {
   readonly types: EntityType[];
   readonly actions: TransferAction[];
   readonly priority?: number;
+  /** Declared capabilities/requirements (advisory). */
+  readonly permissions?: PluginPermissions;
   /** Override for finer control than (types × actions). */
   canHandle?(entity: TransferableEntity, action: TransferAction): boolean;
   /** Perform the action with the entity. */
@@ -84,6 +91,7 @@ export class PluginRegistry {
   async resolveProvider(context: GrabContext): Promise<EntityDraft | undefined> {
     for (const provider of this.providers) {
       try {
+        if (provider.canProvide && !provider.canProvide(context)) continue;
         const entity = await provider.capture(context);
         if (entity) return entity;
       } catch (error) {

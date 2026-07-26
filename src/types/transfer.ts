@@ -74,6 +74,21 @@ export interface EntityPermissions {
   requiresApproval?: boolean;
 }
 
+/**
+ * A plugin's declared capabilities — what a provider/sink can do and what it
+ * needs. Advisory this phase (surfaces in the capability matrix later); lets the
+ * runtime and UI reason about a plugin before invoking it.
+ */
+export interface PluginPermissions {
+  read?: boolean;
+  write?: boolean;
+  /** Needs an OS-level permission grant (e.g. screen capture on some platforms). */
+  requiresOsPermission?: boolean;
+  streaming?: boolean;
+  /** Largest payload this plugin handles, in bytes. */
+  maxBytes?: number;
+}
+
 /** Encryption metadata attached to a serialized/at-rest payload. */
 export interface EntityEncryption {
   algorithm: string;
