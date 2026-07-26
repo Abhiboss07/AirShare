@@ -7,15 +7,17 @@ interfaces — a secure networking foundation, a camera-free vision & gesture
 engine, a transport-blind transfer runtime, a real device mesh, end-to-end
 encryption, and real OS content providers (clipboard, text, image, file, browser).
 
-> Status: **Phases 1–5B complete.** 131 automated tests passing, including a real
-> two-node WebSocket handshake, the full gesture pipeline, and a
+> Status: **Phases 1–6 complete.** 133 automated tests passing — a real two-node
+> WebSocket handshake, the full gesture pipeline, a
 > **gesture→grab→end-to-end-encrypt→real-mesh-transfer→drop** flow between two
 > live nodes (session-derived AES-256-GCM on the object itself), a transfer
-> ledger + analytics, and **real clipboard/text/image/file/browser providers** —
-> PC A's clipboard text lands in PC B's clipboard for Ctrl+V. Docs:
+> ledger + analytics, **real clipboard/text/image/file/browser providers**, and a
+> **live camera experience**: pinch to grab, watch a 📄 follow your hand, release
+> toward the target device, and see its clipboard update. Docs:
 > [`PHASE2`](docs/PHASE2.md) · [`PHASE3`](docs/PHASE3.md) ·
 > [`PHASE4`](docs/PHASE4.md) · [`PHASE5A`](docs/PHASE5A.md) ·
-> [`PHASE5B`](docs/PHASE5B.md). Demos: `npm run mesh:demo`, `npm run content:demo`.
+> [`PHASE5B`](docs/PHASE5B.md) · [`PHASE6`](docs/PHASE6.md). Live demo:
+> `npm run experience:demo`.
 
 ---
 
@@ -92,6 +94,10 @@ src/
                session-keyed E2E cipher — bridges net + transfer
   content/     (Phase 5B) clipboard/text/image/file/browser providers + sinks
                over injectable OS backends (in-memory | wl-clipboard/xclip)
+  bridge/      (Phase 6) ExperienceBridge — serves the web client, owns two real
+               nodes + vision, relays the bus (composition seam, like mesh/)
+web/           (Phase 6) browser client: camera + MediaPipe + canvas overlay
+               (floating object, target glow, beam) — built with esbuild
   core/        AirShareNode — composition root & public facade
   index.ts     Library exports + reference CLI
 scripts/
@@ -99,6 +105,8 @@ scripts/
   transfer-demo.ts  Two-runtime gesture→transfer→drop demo (npm run transfer:demo)
   mesh-demo.ts      Two REAL nodes: gesture→secure-mesh→drop + latency (npm run mesh:demo)
   content-demo.ts   Two REAL nodes: PC A text → PC B real clipboard (npm run content:demo)
+  latency-demo.ts   Measured per-stage latency breakdown (npm run latency:demo)
+  experience-demo.ts Live camera → pinch → object flies A→B → clipboard (npm run experience:demo)
 test/
   unit/        crypto, identity, protocol, config, storage, backoff/SAS, registry, reconnect
   integration/ two real nodes: handshake → pairing → encrypted message → heartbeat
@@ -106,6 +114,7 @@ test/
   transfer/    state machine, entity manager, cipher, registry, end-to-end runtime
   mesh/        scheduler, capability negotiation, two-real-node transfer + latency
   content/     backends (in-memory + native), providers/sinks, 2-node clipboard
+  bridge/      headless end-to-end: scripted landmarks → real pipeline → PC-B clipboard
 ```
 
 Vision, transfer and network import nothing from each other — they meet only on
@@ -162,11 +171,14 @@ The full event catalogue is in [`src/types/events.ts`](src/types/events.ts).
 | 4 | Real Device Mesh (mesh transport over Phase-1, scheduler, capabilities, latency) | ✅ |
 | 5A | Production Runtime (E2E entity encryption, dynamic target resolver, capability matrix, transfer ledger + analytics, action engine) | ✅ |
 | 5B | Content Providers (clipboard, text, image, file, browser over injectable OS backends) | ✅ |
-| 6 | Huawei Experience (floating object, beam, device highlight, hover preview, haptics, latency, e2e) | ⬜ |
+| 6 | Huawei Experience (live camera, hand overlay, floating object, target glow, beam) | ✅ |
+| 7 | Real screen sharing (window transfer, screen region, streaming) | ⬜ |
+| 8 | AI layer (OCR, translation, smart actions, plugin SDK) | ⬜ |
+| 9 | Cross-platform packaging (Windows, Linux, Android, macOS) | ⬜ |
 
 Each phase is additive and meets the others only on the `EventBus` / behind
 interfaces. The distributed runtime is hardened (end-to-end encrypted, observable,
-action-aware) and now carries real content — every content provider is a small
-plugin that touches the OS through an injectable backend, with no networking or
-security changes required. Screen/window capture, file streaming and AI features
-are deliberately deferred to later phases.
+action-aware), carries real content, and now has a live gesture-driven UI — the
+browser stays a thin camera/render client while the real mesh runs in Node behind
+the `bridge/` seam, so nothing in the core changed to add the experience. Screen/
+window capture, streaming and AI features are deliberately deferred to Phases 7+.
