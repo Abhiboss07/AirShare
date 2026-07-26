@@ -1,19 +1,21 @@
-# Air Share — Phase 1: Foundation & Networking
+# Air Share — Gesture-Driven Cross-Device Transfer
 
-Air Share is a gesture-inspired, local-network transfer system (à la Huawei Super
-Device / AirDrop). **Phase 1 builds only the networking foundation** every later
-phase depends on: secure automatic discovery, pairing, authenticated encrypted
-messaging, heartbeats and reconnection. There is deliberately **no** gesture,
-camera, clipboard or file-transfer code yet — those plug into this foundation
-later without changing it.
+Air Share is a gesture-driven, local-network transfer system (à la Huawei Super
+Device / AirDrop): pinch content on one device, drop it on another over a secure
+mesh. It is built in decoupled layers that meet only on a typed event bus / behind
+interfaces — a secure networking foundation, a camera-free vision & gesture
+engine, a transport-blind transfer runtime, a real device mesh, end-to-end
+encryption, and real OS content providers (clipboard, text, image, file, browser).
 
-> Status: **Phases 1–5A complete.** 113 automated tests passing, including a real
+> Status: **Phases 1–5B complete.** 131 automated tests passing, including a real
 > two-node WebSocket handshake, the full gesture pipeline, and a
 > **gesture→grab→end-to-end-encrypt→real-mesh-transfer→drop** flow between two
-> live nodes (session-derived AES-256-GCM on the object itself), with a transfer
-> ledger + analytics on both ends. Docs: [`PHASE2`](docs/PHASE2.md) ·
-> [`PHASE3`](docs/PHASE3.md) · [`PHASE4`](docs/PHASE4.md) ·
-> [`PHASE5A`](docs/PHASE5A.md). Milestone demo: `npm run mesh:demo`.
+> live nodes (session-derived AES-256-GCM on the object itself), a transfer
+> ledger + analytics, and **real clipboard/text/image/file/browser providers** —
+> PC A's clipboard text lands in PC B's clipboard for Ctrl+V. Docs:
+> [`PHASE2`](docs/PHASE2.md) · [`PHASE3`](docs/PHASE3.md) ·
+> [`PHASE4`](docs/PHASE4.md) · [`PHASE5A`](docs/PHASE5A.md) ·
+> [`PHASE5B`](docs/PHASE5B.md). Demos: `npm run mesh:demo`, `npm run content:demo`.
 
 ---
 
@@ -88,18 +90,22 @@ src/
                scheduler, action engine, ledger + analytics, runtime
   mesh/        (Phase 4/5A) mesh transport, messenger, capability matrix,
                session-keyed E2E cipher — bridges net + transfer
+  content/     (Phase 5B) clipboard/text/image/file/browser providers + sinks
+               over injectable OS backends (in-memory | wl-clipboard/xclip)
   core/        AirShareNode — composition root & public facade
   index.ts     Library exports + reference CLI
 scripts/
   vision-demo.ts    Camera-free gesture pipeline demo (npm run vision:demo)
   transfer-demo.ts  Two-runtime gesture→transfer→drop demo (npm run transfer:demo)
   mesh-demo.ts      Two REAL nodes: gesture→secure-mesh→drop + latency (npm run mesh:demo)
+  content-demo.ts   Two REAL nodes: PC A text → PC B real clipboard (npm run content:demo)
 test/
   unit/        crypto, identity, protocol, config, storage, backoff/SAS, registry, reconnect
   integration/ two real nodes: handshake → pairing → encrypted message → heartbeat
   vision/      geometry, detectors, smoothing, swipe, state machine, engine, adapter
   transfer/    state machine, entity manager, cipher, registry, end-to-end runtime
   mesh/        scheduler, capability negotiation, two-real-node transfer + latency
+  content/     backends (in-memory + native), providers/sinks, 2-node clipboard
 ```
 
 Vision, transfer and network import nothing from each other — they meet only on
@@ -155,10 +161,12 @@ The full event catalogue is in [`src/types/events.ts`](src/types/events.ts).
 | 3 | Transfer Runtime (`TransferableEntity` lifecycle, action pipeline, plugins, virtual hand) | ✅ |
 | 4 | Real Device Mesh (mesh transport over Phase-1, scheduler, capabilities, latency) | ✅ |
 | 5A | Production Runtime (E2E entity encryption, dynamic target resolver, capability matrix, transfer ledger + analytics, action engine) | ✅ |
-| 5B | Content Providers (clipboard, image, file, text, screen, window, browser) | ⬜ |
+| 5B | Content Providers (clipboard, text, image, file, browser over injectable OS backends) | ✅ |
 | 6 | Huawei Experience (floating object, beam, device highlight, hover preview, haptics, latency, e2e) | ⬜ |
 
 Each phase is additive and meets the others only on the `EventBus` / behind
-interfaces. The distributed runtime is now hardened (end-to-end encrypted,
-observable, action-aware), so every Phase-5B content provider is a small
-plugin — no networking or security changes required.
+interfaces. The distributed runtime is hardened (end-to-end encrypted, observable,
+action-aware) and now carries real content — every content provider is a small
+plugin that touches the OS through an injectable backend, with no networking or
+security changes required. Screen/window capture, file streaming and AI features
+are deliberately deferred to later phases.
