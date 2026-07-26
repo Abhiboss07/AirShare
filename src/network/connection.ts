@@ -118,6 +118,15 @@ export class PeerConnection {
     return this.state;
   }
 
+  /**
+   * The purpose-separated entity-encryption key shared with this peer, available
+   * only once the link is connected. Higher layers use it for end-to-end
+   * encryption of the *object*; the transport (tx/rx) keys never leave here.
+   */
+  entityKey(): Buffer | undefined {
+    return this.state === "connected" ? this.session?.entityKey() : undefined;
+  }
+
   /** Begin the handshake. Initiators send HELLO immediately. */
   start(): void {
     this.handshakeTimer = setTimeout(() => {

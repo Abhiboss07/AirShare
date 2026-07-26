@@ -34,6 +34,10 @@ const GCM_IV_BYTES = 12; // 96-bit nonce, standard for GCM
 const GCM_TAG_BYTES = 16;
 const HKDF_INFO_TX = "air-share/session/v1/initiator->responder";
 const HKDF_INFO_RX = "air-share/session/v1/responder->initiator";
+// Purpose-separated key for end-to-end entity encryption. Role-independent so
+// both peers derive the identical key (used to encrypt the object itself,
+// independently of the transport-level session keys above).
+const HKDF_INFO_ENTITY = "air-share/entity/v1";
 
 export type SessionRole = "initiator" | "responder";
 
@@ -95,7 +99,13 @@ export function deriveSession(params: DeriveSessionParams): SecureSession {
       ? [initiatorToResponder, responderToInitiator]
       : [responderToInitiator, initiatorToResponder];
 
-  return new SecureSession(txKey, rxKey);
+  // Both `shared` and `salt` are identical on both peers regardless of role, and
+  // the info label is fixed, so both sides compute the same entity key.
+  const entityKey = Buffer.from(
+    hkdfSync("sha256", shared, salt, HKDF_INFO_ENTITY, AES_KEY_BYTES),
+  );
+
+  return new SecureSession(txKey, rxKey, entityKey);
 }
 
 /**
@@ -107,7 +117,19 @@ export class SecureSession {
   constructor(
     private readonly txKey: Buffer,
     private readonly rxKey: Buffer,
+    /** Symmetric, role-independent key for end-to-end entity encryption. */
+    private readonly entityKeyMaterial: Buffer,
   ) {}
+
+  /**
+   * A copy of the purpose-separated key both peers share, for encrypting the
+   * *object* independently of the transport. Derived from the same ephemeral
+   * ECDH secret, so it inherits this session's forward secrecy but is namespaced
+   * away from the transport (tx/rx) keys.
+   */
+  entityKey(): Buffer {
+    return Buffer.from(this.entityKeyMaterial);
+  }
 
   encrypt(plaintext: Buffer): Buffer {
     const iv = randomBytes(GCM_IV_BYTES);

@@ -19,6 +19,10 @@ export interface MeshMessenger {
   onMessage(cb: (from: string, channel: string, data: unknown) => void): () => void;
   /** Subscribe to "a device became connected". Returns an unsubscribe fn. */
   onConnected(cb: (deviceId: string) => void): () => void;
+  /** Ids of currently-connected peers (for target resolution). */
+  connectedDeviceIds(): string[];
+  /** Shared end-to-end entity key for a connected peer, or undefined. */
+  entityKeyFor(deviceId: string): Buffer | undefined;
 }
 
 /** Adapts an `AirShareNode` (Phase 1) to the MeshMessenger contract. */
@@ -43,5 +47,13 @@ export class AirShareNodeMessenger implements MeshMessenger {
 
   onConnected(cb: (deviceId: string) => void): () => void {
     return this.node.on("device:connected", ({ device }) => cb(device.identity.id));
+  }
+
+  connectedDeviceIds(): string[] {
+    return this.node.connectedDeviceIds();
+  }
+
+  entityKeyFor(deviceId: string): Buffer | undefined {
+    return this.node.entityKeyFor(deviceId);
   }
 }

@@ -47,6 +47,8 @@ export interface ITransport {
   sendTo(deviceId: string, channel: string, data: unknown): boolean;
   isConnected(deviceId: string): boolean;
   connectedDeviceIds(): string[];
+  /** Shared end-to-end entity key for a connected peer, or undefined. */
+  entityKeyFor(deviceId: string): Buffer | undefined;
 }
 
 interface ManagedConnection {
@@ -267,6 +269,10 @@ export class WebSocketTransport implements ITransport {
 
   connectedDeviceIds(): string[] {
     return [...this.connections.keys()];
+  }
+
+  entityKeyFor(deviceId: string): Buffer | undefined {
+    return this.connections.get(deviceId)?.connection.entityKey();
   }
 
   async stop(): Promise<void> {

@@ -179,6 +179,20 @@ export class AirShareNode {
     return this.transport.sendTo(deviceId, channel, data);
   }
 
+  /** Device ids of currently-connected peers. */
+  connectedDeviceIds(): string[] {
+    return this.transport.connectedDeviceIds();
+  }
+
+  /**
+   * The shared end-to-end entity-encryption key for a connected peer (or
+   * undefined). Used by the transfer layer to encrypt the object itself,
+   * independently of the transport session.
+   */
+  entityKeyFor(deviceId: string): Buffer | undefined {
+    return this.transport.entityKeyFor(deviceId);
+  }
+
   private async loadOrCreateIdentity(): Promise<Identity> {
     const material = await this.storage.identity.load();
     if (material) {
