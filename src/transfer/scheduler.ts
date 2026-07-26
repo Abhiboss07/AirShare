@@ -17,6 +17,7 @@ import type { TransferAck, TransferEnvelope } from "../types/transfer.js";
 import { BaseTransferTransport, type ITransferTransport, type ReceiveHandler, type StreamMeta } from "./transport.js";
 import { computeBackoff, type BackoffOptions } from "../utils/async.js";
 import type { Logger } from "../utils/logger.js";
+import type { IEventBus } from "../events/eventBus.js";
 
 export interface SchedulerConfig {
   /** Max simultaneous in-flight transfers (congestion control). */
@@ -54,6 +55,8 @@ export class TransferScheduler extends BaseTransferTransport {
     private readonly inner: ITransferTransport,
     private readonly config: SchedulerConfig,
     private readonly logger: Logger,
+    /** Optional bus for `transfer:retry` telemetry (feeds the ledger). */
+    private readonly eventBus?: IEventBus,
   ) {
     super();
   }
@@ -140,13 +143,13 @@ export class TransferScheduler extends BaseTransferTransport {
       }
       const shouldRetry = !ack.accepted && this.config.retryOnRejectedAck;
       if (shouldRetry && job.attempts < this.config.maxRetries) {
-        this.scheduleRetry(job);
+        this.scheduleRetry(job, ack.reason ?? "rejected by peer");
         return;
       }
       this.settle(job, ack);
     } catch (error) {
       if (!job.cancelled && job.attempts < this.config.maxRetries) {
-        this.scheduleRetry(job);
+        this.scheduleRetry(job, error instanceof Error ? error.message : String(error));
         return;
       }
       this.settle(job, {
@@ -160,10 +163,15 @@ export class TransferScheduler extends BaseTransferTransport {
     }
   }
 
-  private scheduleRetry(job: Job): void {
+  private scheduleRetry(job: Job, reason: string): void {
     const delay = computeBackoff(job.attempts, this.config.backoff);
     job.attempts++;
     this.logger.debug("retrying transfer", { transferId: job.envelope.transferId, attempt: job.attempts, delay });
+    this.eventBus?.emit("transfer:retry", {
+      transferId: job.envelope.transferId,
+      attempt: job.attempts,
+      reason,
+    });
     job.timer = setTimeout(() => {
       if (job.cancelled) return;
       this.enqueue(job);

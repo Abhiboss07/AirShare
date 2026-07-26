@@ -92,6 +92,8 @@ export interface AirShareEventMap {
   "transfer:received": { entityId: string; type: EntityType; from: string };
   "transfer:completed": { transferId: string; entityId: string; targetDeviceId?: string };
   "transfer:failed": { transferId: string; entityId: string; reason: string };
+  /** A queued transfer is being retried after a failure (scheduler). */
+  "transfer:retry": { transferId: string; attempt: number; reason: string };
   "transfer:metrics": TransferMetrics;
   "capabilities:negotiated": { deviceId: string; capabilities: string[] };
 }
